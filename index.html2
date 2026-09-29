@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Absensi Digital Sekolah</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          display: ['Space Grotesk', 'sans-serif'],
+          sans: ['Inter', 'sans-serif'],
+        },
+        colors: {
+          ink: '#132A43',
+          navy: '#1D3A5F',
+          brass: '#C08A28',
+          hadir: '#2E7D53',
+          sakit: '#3A6EA5',
+          izin: '#7C5CA6',
+          alpha: '#A6383F',
+        }
+      }
+    }
+  }
+</script>
+<style>
+  body { background: #F6F5F1; }
+  .tabular { font-variant-numeric: tabular-nums; }
+  #qr-reader video { border-radius: 0.75rem; width: 100% !important; }
+  .field-error { border-color: #A6383F !important; }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body class="font-sans text-ink min-h-screen pb-10">
+
+<header class="bg-ink text-white px-5 pt-6 pb-8 rounded-b-3xl">
+  <div class="flex items-center gap-3 mb-5">
+    <div class="w-10 h-10 rounded-xl bg-brass flex items-center justify-center font-display font-bold text-ink">A</div>
+    <div>
+      <h1 class="font-display font-semibold text-lg leading-tight">Absensi Digital</h1>
+      <p class="text-white/60 text-xs">Sistem Kehadiran Siswa</p>
+    </div>
+  </div>
+  <div class="bg-white/5 rounded-2xl px-4 py-4">
+    <p id="clockDate" class="text-white/70 text-sm mb-1">-</p>
+    <p id="clockTime" class="font-display tabular text-4xl font-semibold tracking-tight">00:00:00</p>
+    <div class="inline-flex items-center gap-1.5 mt-3 px-3 py-1 rounded-full text-xs font-medium bg-white/10">
+      <span id="onTimeDot" class="w-1.5 h-1.5 rounded-full bg-hadir"></span>
+      <span id="onTimeText">Menghitung...</span>
+    </div>
+  </div>
+</header>
+
+<main class="px-5 mt-6 space-y-5 max-w-md mx-auto">
+
+  <!-- STEP 1: SCAN QR -->
+  <section class="bg-white rounded-2xl border border-black/5 shadow-sm p-4">
+    <div class="flex items-center gap-2.5 mb-3">
+      <span class="w-7 h-7 rounded-full bg-ink text-white text-sm font-display font-semibold flex items-center justify-center shrink-0">1</span>
+      <h2 class="font-display font-semibold">Scan Kartu QR</h2>
+    </div>
+
+    <div id="qr-reader" class="rounded-xl overflow-hidden bg-black/5 aspect-square hidden"></div>
+
+    <div class="flex gap-2 mt-3">
+      <button id="btnScan" onclick="startScanner()" class="flex-1 bg-ink text-white rounded-xl py-2.5 font-medium text-sm active:scale-[.98] transition-transform">Mulai Scan QR</button>
+      <button id="btnStopScan" onclick="stopScanner()" class="hidden flex-1 bg-black/5 text-ink rounded-xl py-2.5 font-medium text-sm">Stop Kamera</button>
+    </div>
+    <p id="scanMsg" class="text-xs text-black/40 mt-2"></p>
+
+    <div class="grid grid-cols-2 gap-3 mt-4">
+      <div>
+        <label for="nis" class="text-xs font-medium text-black/50">NIS</label>
+        <input id="nis" type="text" inputmode="numeric" placeholder="cth. 1001" class="mt-1 w-full border border-black/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
+      </div>
+      <div>
+        <label for="nama" class="text-xs font-medium text-black/50">Nama Siswa</label>
+        <input id="nama" type="text" readonly placeholder="Otomatis" class="mt-1 w-full border border-black/10 rounded-lg px-3 py-2 text-sm bg-black/5">
+      </div>
+    </div>
+    <p class="text-[11px] text-black/35 mt-1.5">Nama terisi otomatis begitu NIS valid, baik lewat scan maupun ketik manual.</p>
+  </section>
+
+  <!-- STEP 2: STATUS -->
+  <section class="bg-white rounded-2xl border border-black/5 shadow-sm p-4">
+    <div class="flex items-center gap-2.5 mb-3">
+      <span class="w-7 h-7 rounded-full bg-ink text-white text-sm font-display font-semibold flex items-center justify-center shrink-0">2</span>
+      <h2 class="font-display font-semibold">Status Kehadiran</h2>
+    </div>
+    <div class="grid grid-cols-2 gap-2.5">
+      <div>
+        <input type="radio" id="st-hadir" name="status" value="Hadir" class="peer hidden" onchange="setStatus('Hadir')">
+        <label for="st-hadir" class="flex items-center gap-2 border border-black/10 rounded-xl px-3 py-2.5 cursor-pointer text-sm font-medium text-hadir peer-checked:ring-2 peer-checked:ring-hadir peer-checked:bg-hadir/10">
+          <span class="w-2 h-2 rounded-full bg-hadir shrink-0"></span>Hadir
+        </label>
+      </div>
+      <div>
+        <input type="radio" id="st-sakit" name="status" value="Sakit" class="peer hidden" onchange="setStatus('Sakit')">
+        <label for="st-sakit" class="flex items-center gap-2 border border-black/10 rounded-xl px-3 py-2.5 cursor-pointer text-sm font-medium text-sakit peer-checked:ring-2 peer-checked:ring-sakit peer-checked:bg-sakit/10">
+          <span class="w-2 h-2 rounded-full bg-sakit shrink-0"></span>Sakit
+        </label>
+      </div>
+      <div>
+        <input type="radio" id="st-izin" name="status" value="Izin" class="peer hidden" onchange="setStatus('Izin')">
+        <label for="st-izin" class="flex items-center gap-2 border border-black/10 rounded-xl px-3 py-2.5 cursor-pointer text-sm font-medium text-izin peer-checked:ring-2 peer-checked:ring-izin peer-checked:bg-izin/10">
+          <span class="w-2 h-2 rounded-full bg-izin shrink-0"></span>Izin
+        </label>
+      </div>
+      <div>
+        <input type="radio" id="st-alpha" name="status" value="Alpha" class="peer hidden" onchange="setStatus('Alpha')">
+        <label for="st-alpha" class="flex items-center gap-2 border border-black/10 rounded-xl px-3 py-2.5 cursor-pointer text-sm font-medium text-alpha peer-checked:ring-2 peer-checked:ring-alpha peer-checked:bg-alpha/10">
+          <span class="w-2 h-2 rounded-full bg-alpha shrink-0"></span>Alpha
+        </label>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 3: LOKASI -->
+  <section class="bg-white rounded-2xl border border-black/5 shadow-sm p-4">
+    <div class="flex items-center gap-2.5 mb-3">
+      <span class="w-7 h-7 rounded-full bg-ink text-white text-sm font-display font-semibold flex items-center justify-center shrink-0">3</span>
+      <h2 class="font-display font-semibold">Lokasi</h2>
+    </div>
+    <button id="btnLokasi" onclick="getLocation()" class="w-full bg-navy text-white rounded-xl py-2.5 font-medium text-sm active:scale-[.98] transition-transform">Dapatkan Lokasi</button>
+    <div id="locationBox" class="hidden mt-3">
+      <p class="text-xs text-black/50">Koordinat</p>
+      <p id="locationText" class="text-sm font-medium tabular mb-2">-</p>
+      <iframe id="mapFrame" class="w-full h-40 rounded-xl border border-black/10" loading="lazy"></iframe>
+      <a id="mapLink" href="#" target="_blank" rel="noopener" class="text-xs text-navy underline mt-2 inline-block">Buka di Google Maps</a>
+    </div>
+  </section>
+
+  <!-- STEP 4: FOTO -->
+  <section class="bg-white rounded-2xl border border-black/5 shadow-sm p-4">
+    <div class="flex items-center gap-2.5 mb-3">
+      <span class="w-7 h-7 rounded-full bg-ink text-white text-sm font-display font-semibold flex items-center justify-center shrink-0">4</span>
+      <h2 class="font-display font-semibold">Foto Bukti Kehadiran</h2>
+    </div>
+    <label for="fotoInput" class="w-full block text-center border-2 border-dashed border-black/15 rounded-xl py-6 text-sm text-black/50 cursor-pointer">
+      Ketuk untuk buka kamera
+      <input id="fotoInput" type="file" accept="image/*" capture="camera" class="hidden">
+    </label>
+    <div id="fotoPreviewBox" class="hidden mt-3">
+      <img id="fotoPreview" class="w-full rounded-xl object-cover max-h-64" alt="Pratinjau foto kehadiran">
+    </div>
+  </section>
+
+  <button id="btnSubmit" onclick="submitAbsensi()" class="w-full bg-brass text-ink rounded-xl py-3.5 font-display font-semibold active:scale-[.98] transition-transform shadow-sm">Kirim Absensi</button>
+
+  <!-- RIWAYAT -->
+  <section class="bg-white rounded-2xl border border-black/5 shadow-sm p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-display font-semibold">Riwayat Absensi (HP ini)</h2>
+      <span id="riwayatCount" class="text-xs text-black/40">0 data</span>
+    </div>
+    <p id="riwayatEmpty" class="text-xs text-black/40 py-3 text-center">Belum ada absensi tercatat di HP ini.</p>
+    <div id="riwayatList" class="space-y-2 hidden max-h-72 overflow-y-auto"></div>
+    <div class="flex gap-2 mt-3">
+      <button onclick="downloadCSV()" class="flex-1 bg-navy text-white rounded-xl py-2 text-sm font-medium">Unduh CSV</button>
+      <button onclick="clearRiwayat()" class="flex-1 bg-black/5 text-alpha rounded-xl py-2 text-sm font-medium">Hapus Riwayat</button>
+    </div>
+    <p class="text-[11px] text-black/35 mt-2">Riwayat ini tersimpan di browser HP ini saja (localStorage), cocok karena satu HP dipakai untuk scan semua siswa bergantian.</p>
+  </section>
+</main>
+
+<script>
+  const students = {
+    "1001": "Anisa Apriliani", "1002": "Brian Dzaky", "1003": "Cikalita Lestari",
+    "1004": "Dilan", "1005": "Erlangga", "1006": "Fathia Rahma Aysha",
+    "1007": "Galih Agung", "1008": "Hanan Aditya", "1009": "Indira Rahayu",
+    "1010": "Jessika", "1011": "Kurniawan Fendy", "1012": "Laras Mulya",
+    "1013": "Leni Prihatini", "1014": "Milea Adnan Hussain", "1015": "Nayla",
+    "1016": "Putri Reza Resita", "1017": "Resky", "1018": "Revira Ayu",
+    "1019": "Salsa", "1020": "Taufik"
+  };
+
+  const HARI = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+  const BULAN = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+  const BATAS_MENIT = 7 * 60; // batas jam 07:00
+
+  let state = { status: null, lokasi: null, foto: false };
+  let html5QrCode = null;
+  let scanning = false;
+
+  const STORAGE_KEY = 'absensiRecords';
+
+  function loadRecords() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+    catch { return []; }
+  }
+
+  function saveRecord(record) {
+    const records = loadRecords();
+    records.push(record);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(records)); } catch {}
+    renderRiwayat();
+  }
+
+  function clearRiwayat() {
+    if (!confirm('Hapus semua riwayat absensi di HP ini?')) return;
+    localStorage.removeItem(STORAGE_KEY);
+    renderRiwayat();
+  }
+
+  function renderRiwayat() {
+    const records = loadRecords();
+    document.getElementById('riwayatCount').textContent = `${records.length} data`;
+    const listEl = document.getElementById('riwayatList');
+    const emptyEl = document.getElementById('riwayatEmpty');
+    if (!records.length) {
+      listEl.classList.add('hidden');
+      emptyEl.classList.remove('hidden');
+      return;
+    }
+    emptyEl.classList.add('hidden');
+    listEl.classList.remove('hidden');
+    listEl.innerHTML = records.slice().reverse().map(r => `
+      <div class="border border-black/10 rounded-lg px-3 py-2 text-sm">
+        <div class="flex justify-between font-medium">
+          <span>${r.nama} (${r.nis})</span>
+          <span>${r.status}</span>
+        </div>
+        <div class="text-xs text-black/50">${r.tanggal}, ${r.waktu} — ${r.keterangan}</div>
+      </div>
+    `).join('');
+  }
+
+  function downloadCSV() {
+    const records = loadRecords();
+    if (!records.length) { alert('Belum ada data untuk diunduh.'); return; }
+    const header = ['No','NIS','Nama','Status','Tanggal','Waktu','Keterangan','Latitude','Longitude'];
+    const rows = records.map((r, i) => [i + 1, r.nis, r.nama, r.status, r.tanggal, r.waktu, r.keterangan, r.lat, r.lng]);
+    const csv = [header, ...rows].map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `daftar-hadir-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function pad(n) { return n.toString().padStart(2, '0'); }
+
+  function tick() {
+    const now = new Date();
+    document.getElementById('clockDate').textContent =
+      `${HARI[now.getDay()]}, ${now.getDate()} ${BULAN[now.getMonth()]} ${now.getFullYear()}`;
+    document.getElementById('clockTime').textContent =
+      `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+    const onTime = (now.getHours() * 60 + now.getMinutes()) <= BATAS_MENIT;
+    document.getElementById('onTimeDot').className =
+      `w-1.5 h-1.5 rounded-full ${onTime ? 'bg-hadir' : 'bg-alpha'}`;
+    document.getElementById('onTimeText').textContent =
+      onTime ? 'Jika absen sekarang: Tepat Waktu' : 'Jika absen sekarang: Terlambat';
+  }
+  tick();
+  setInterval(tick, 1000);
+  renderRiwayat();
+
+  function lookupStudent() {
+    const nisInput = document.getElementById('nis');
+    const namaInput = document.getElementById('nama');
+    const nis = nisInput.value.trim();
+    if (students[nis]) {
+      namaInput.value = students[nis];
+      nisInput.classList.remove('field-error');
+    } else {
+      namaInput.value = '';
+      nisInput.classList.toggle('field-error', nis.length > 0);
+    }
+  }
+  document.getElementById('nis').addEventListener('input', lookupStudent);
+
+  function startScanner() {
+    const region = document.getElementById('qr-reader');
+    region.classList.remove('hidden');
+    document.getElementById('btnScan').classList.add('hidden');
+    document.getElementById('btnStopScan').classList.remove('hidden');
+    document.getElementById('scanMsg').textContent = 'Arahkan kamera ke QR Code...';
+
+    html5QrCode = new Html5Qrcode('qr-reader');
+    html5QrCode.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 220, height: 220 } },
+      (decodedText) => {
+        document.getElementById('nis').value = decodedText.trim();
+        lookupStudent();
+        document.getElementById('scanMsg').textContent = 'QR berhasil dipindai.';
+        stopScanner();
+      },
+      () => { /* frame tanpa QR, abaikan */ }
+    ).then(() => {
+      scanning = true;
+    }).catch(() => {
+      document.getElementById('scanMsg').textContent =
+        'Kamera tidak dapat diakses. Pastikan izin kamera diaktifkan dan situs berjalan di HTTPS.';
+      region.classList.add('hidden');
+      document.getElementById('btnScan').classList.remove('hidden');
+      document.getElementById('btnStopScan').classList.add('hidden');
+    });
+  }
+
+  function stopScanner() {
+    if (html5QrCode && scanning) {
+      html5QrCode.stop().then(() => {
+        html5QrCode.clear();
+        scanning = false;
+        document.getElementById('qr-reader').classList.add('hidden');
+        document.getElementById('btnScan').classList.remove('hidden');
+        document.getElementById('btnStopScan').classList.add('hidden');
+      }).catch(() => {});
+    }
+  }
+
+  function setStatus(val) { state.status = val; }
+
+  function getLocation() {
+    const btn = document.getElementById('btnLokasi');
+    if (!navigator.geolocation) {
+      alert('Geolocation tidak didukung oleh browser ini.');
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Mencari lokasi...';
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        state.lokasi = { lat: latitude, lng: longitude };
+        document.getElementById('locationText').textContent = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+        document.getElementById('mapFrame').src = `https://www.google.com/maps?q=${latitude},${longitude}&output=embed`;
+        document.getElementById('mapLink').href = `https://www.google.com/maps?q=${latitude},${longitude}`;
+        document.getElementById('locationBox').classList.remove('hidden');
+        btn.disabled = false;
+        btn.textContent = 'Perbarui Lokasi';
+      },
+      (err) => {
+        alert('Gagal mendapatkan lokasi: ' + err.message);
+        btn.disabled = false;
+        btn.textContent = 'Dapatkan Lokasi';
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }
+
+  document.getElementById('fotoInput').addEventListener('change', function (e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      document.getElementById('fotoPreview').src = ev.target.result;
+      document.getElementById('fotoPreviewBox').classList.remove('hidden');
+      state.foto = true;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  function submitAbsensi() {
+    const nis = document.getElementById('nis').value.trim();
+    const nama = document.getElementById('nama').value.trim();
+    const missing = [];
+    if (!nis) missing.push('NIS (scan QR atau ketik manual)');
+    else if (!students[nis]) missing.push('NIS tidak terdaftar di data siswa');
+    if (!state.status) missing.push('Status Kehadiran');
+    if (!state.lokasi) missing.push('Lokasi (klik "Dapatkan Lokasi")');
+    if (!state.foto) missing.push('Foto bukti kehadiran');
+
+    if (missing.length) {
+      alert('Lengkapi data berikut sebelum mengirim:\n- ' + missing.join('\n- '));
+      return;
+    }
+
+    const now = new Date();
+    const waktu = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    const tanggal = `${HARI[now.getDay()]}, ${now.getDate()} ${BULAN[now.getMonth()]} ${now.getFullYear()}`;
+    const keterangan = (now.getHours() * 60 + now.getMinutes()) <= BATAS_MENIT ? 'Hadir Tepat Waktu' : 'Terlambat';
+
+    saveRecord({
+      nis, nama, status: state.status, tanggal, waktu, keterangan,
+      lat: state.lokasi.lat.toFixed(6), lng: state.lokasi.lng.toFixed(6)
+    });
+
+    alert(
+      'Absensi berhasil dikirim (simulasi)\n\n' +
+      `Nama: ${nama} (NIS ${nis})\n` +
+      `Status: ${state.status}\n` +
+      `Waktu: ${tanggal}, ${waktu}\n` +
+      `Keterangan: ${keterangan}\n` +
+      `Lokasi: ${state.lokasi.lat.toFixed(6)}, ${state.lokasi.lng.toFixed(6)}\n` +
+      `Foto: terlampir`
+    );
+
+    resetForm();
+  }
+
+  function resetForm() {
+    document.getElementById('nis').value = '';
+    document.getElementById('nama').value = '';
+    document.getElementById('nis').classList.remove('field-error');
+    document.querySelectorAll('input[name="status"]').forEach(r => r.checked = false);
+    state = { status: null, lokasi: null, foto: false };
+    document.getElementById('locationBox').classList.add('hidden');
+    document.getElementById('fotoPreviewBox').classList.add('hidden');
+    document.getElementById('fotoInput').value = '';
+    document.getElementById('btnLokasi').textContent = 'Dapatkan Lokasi';
+  }
+</script>
+</body>
+  </html>
